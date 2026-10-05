@@ -45,7 +45,7 @@ logging.basicConfig(
 )
 log = logging.getLogger("ainews")
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder=".")
 
 START_TIME = time.monotonic()  # /health uptime ke liye
 
