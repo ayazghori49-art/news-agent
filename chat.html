@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>News Agent — AI research agent</title>
+<style>
+  :root{
+    --bg:#0d1117; --card:#161b22; --border:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --user:#1f6feb; --live:#3fb950; --sample:#d29922;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    min-height:100vh; display:flex; flex-direction:column;}
+
+  header{padding:14px 16px; text-align:center; border-bottom:1px solid var(--border);
+    position:sticky; top:0; background:var(--bg); z-index:10;}
+  header h1{font-size:1.3rem; letter-spacing:.5px;}
+  header h1 span{color:var(--accent);}
+  header .badge{display:inline-block; border:1px solid currentColor; border-radius:6px;
+    padding:1px 8px; font-size:.7rem; margin-top:6px;}
+  header .badge.live{color:var(--live);}
+  header .badge.sample{color:var(--sample);}
+  header p{color:var(--muted); font-size:.78rem; margin-top:4px;}
+
+  .chips{display:flex; gap:8px; justify-content:center; flex-wrap:wrap; padding:10px 12px 2px;}
+  .chips button{background:var(--card); color:var(--text); border:1px solid var(--border);
+    border-radius:18px; padding:7px 14px; font-size:.82rem; cursor:pointer;}
+  .chips button:active{transform:scale(.95); background:var(--accent); color:#0d1117;}
+
+  #chat{flex:1; padding:14px 12px; display:flex; flex-direction:column; gap:12px;
+    max-width:760px; margin:0 auto; width:100%;}
+  .msg{max-width:88%; padding:10px 14px; border-radius:14px; font-size:.94rem;
+    line-height:1.55; animation:fadeup .3s ease both; word-wrap:break-word;}
+  @keyframes fadeup{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:none;}}
+  .msg.user{align-self:flex-end; background:var(--user); color:#fff;
+    border-bottom-right-radius:4px;}
+  .msg.agent{align-self:flex-start; background:var(--card);
+    border:1px solid var(--border); border-bottom-left-radius:4px; width:100%;}
+  .msg.agent .who{font-size:.72rem; color:var(--accent); font-weight:700; margin-bottom:4px;}
+  .msg.error{border-color:#f85149;}
+  .msg .body{white-space:pre-wrap;}
+  .msg .body sup.cite{color:var(--accent); font-weight:700;}
+
+  .sources{margin-top:10px; border-top:1px solid var(--border); padding-top:8px;}
+  .sources .stitle{font-size:.75rem; color:var(--muted); margin-bottom:6px; font-weight:600;}
+  .sources a{display:block; color:var(--accent); text-decoration:none; font-size:.85rem;
+    padding:5px 0; line-height:1.4;}
+  .sources a:hover{text-decoration:underline;}
+  .sources .snum{display:inline-block; min-width:22px; color:var(--muted);}
+
+  details.trace{margin-top:10px; border:1px solid var(--border); border-radius:8px;
+    background:#0d1117; font-size:.8rem;}
+  details.trace summary{cursor:pointer; padding:8px 10px; color:var(--muted);
+    font-weight:600; list-style:none;}
+  details.trace summary::-webkit-details-marker{display:none;}
+  details.trace summary:before{content:"🔍 "; }
+  details.trace .tinner{padding:0 10px 10px; line-height:1.6;}
+  details.trace .trow{margin-bottom:6px;}
+  details.trace .tlabel{color:var(--accent); font-weight:700;}
+  details.trace code{background:#161b22; border:1px solid var(--border); border-radius:4px;
+    padding:1px 6px; font-size:.76rem;}
+
+  .typing{align-self:flex-start; background:var(--card); border:1px solid var(--border);
+    border-radius:14px; padding:12px 16px; font-size:.85rem; color:var(--muted);
+    display:none; max-width:88%;}
+  .typing.on{display:block;}
+  .typing .dots span{display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--accent); margin-right:4px; animation:blink 1.2s infinite;}
+  .typing .dots span:nth-child(2){animation-delay:.2s;}
+  .typing .dots span:nth-child(3){animation-delay:.4s;}
+  @keyframes blink{0%,100%{opacity:.25;} 50%{opacity:1;}}
+
+  .inputbar{position:sticky; bottom:0; background:var(--bg); border-top:1px solid var(--border);
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));}
+  .inputbar form{display:flex; gap:8px; max-width:760px; margin:0 auto;}
+  .inputbar input{flex:1; background:var(--card); color:var(--text);
+    border:1px solid var(--border); border-radius:12px; padding:12px 14px; font-size:1rem;
+    outline:none;}
+  .inputbar input:focus{border-color:var(--accent); box-shadow:0 0 0 3px rgba(88,166,255,.18);}
+  .inputbar button{background:var(--accent); color:#0d1117; border:none; border-radius:12px;
+    padding:0 20px; font-size:1.1rem; font-weight:700; cursor:pointer;}
+  .inputbar button:disabled{opacity:.5;}
+  .inputbar button:active{transform:scale(.94);}
+
+  footer{text-align:center; padding:14px; font-size:.76rem; color:var(--muted);
+    border-top:1px solid var(--border);}
+  footer p{margin:3px 0;}
+</style>
+</head>
+<body>
+<header>
+  <h1>🤖 News <span>Agent</span></h1>
+  <div><span class="badge sample" id="modebadge">● SAMPLE</span></div>
+  <p>Sawaal poochho — agent plan karke search karega, sources compare karke jawab dega</p>
+</header>
+
+<div class="chips" id="chips">
+  <button data-q="AI agents India me kya ho raha hai?">🤖 AI agents India</button>
+  <button data-q="Indian AI startups funding news">💰 Startup funding</button>
+  <button data-q="Gemini 3 kya hai?">✨ Gemini 3</button>
+</div>
+
+<div id="chat"></div>
+
+<div class="typing" id="typing">
+  <span class="dots"><span></span><span></span><span></span></span>
+  <span id="typingtext">Agent plan bana raha hai…</span>
+</div>
+
+<div class="inputbar">
+  <form id="chatform" autocomplete="off">
+    <input id="chatinput" type="text" maxlength="500"
+      placeholder="Sawaal poochho… e.g. AI agents India me kya ho raha hai?"
+      aria-label="Ask the news agent">
+    <button type="submit" id="sendbtn" aria-label="Send">➤</button>
+  </form>
+</div>
+
+<footer>
+  <p><strong>News Agent</strong> · SerpApi India Hackathon 2026 — <strong>AI Agents</strong> track</p>
+  <p>Built with AI assistance — Muse Spark agent (Ayaz Gori)</p>
+  <p>Search: SerpApi (google_news + google) · Synthesis: Google Gemini</p>
+</footer>
+
+<script>
+const chatEl   = document.getElementById('chat');
+const formEl   = document.getElementById('chatform');
+const inputEl  = document.getElementById('chatinput');
+const sendBtn  = document.getElementById('sendbtn');
+const typingEl = document.getElementById('typing');
+const typingTx = document.getElementById('typingtext');
+const badgeEl  = document.getElementById('modebadge');
+
+let sid = localStorage.getItem('newsagent_sid');
+if(!/^[0-9a-f]{32}$/.test(sid||'')){
+  sid = Array.from(crypto.getRandomValues(new Uint8Array(16)))
+        .map(b=>b.toString(16).padStart(2,'0')).join('');
+  localStorage.setItem('newsagent_sid', sid);
+}
+
+function esc(s){ const d=document.createElement('div'); d.textContent=(s==null?'':String(s)); return d.innerHTML; }
+
+function linkifyCites(text){
+  return esc(text).replace(/\[(\d+)\]/g, '<sup class="cite">[$1]</sup>');
+}
+
+function renderTrace(t){
+  if(!t || !t.planned_queries) return '';
+  const pq = (t.planned_queries||[]).map(q =>
+    `<code>${esc(q.tool)}</code> "${esc(q.query)}"`).join(' · ');
+  const ss = (t.searches||[]).map(s =>
+    `<code>${esc(s.tool)}</code> ${esc(s.engine)} — "${esc(s.query)}" → ${s.hits} hits`
+    + (s.credits ? ` · ${s.credits} credit` : '')
+    + (s.cached ? ' · cached' : '')
+    + (s.fallback_used ? ' · <b>backup used</b>' : '')
+    + (s.error ? `<br>⚠️ ${esc(s.error)}` : '')
+  ).join('<br>');
+  const mode = t.mode === 'live'
+    ? '<span style="color:var(--live)">LIVE</span>'
+    : '<span style="color:var(--sample)">SAMPLE</span>';
+  return `<details class="trace"><summary>Agent trace — agent ne kya kiya</summary><div class="tinner">
+    <div class="trow"><span class="tlabel">Plan</span> (${esc(t.plan_source||'')}): ${pq||'—'}</div>
+    <div class="trow"><span class="tlabel">Search</span>:<br>${ss||'—'}</div>
+    <div class="trow"><span class="tlabel">Compare</span>: ${t.sources_compared} sources → top ${t.sources_picked} picked</div>
+    <div class="trow"><span class="tlabel">Synthesize</span>: ${esc(t.synthesize_source||'')} · Mode: ${mode}</div>
+  </div></details>`;
+}
+
+function renderSources(sources){
+  if(!sources || !sources.length) return '';
+  const items = sources.map((s,i) =>
+    s.link
+      ? `<a href="${esc(s.link)}" target="_blank" rel="noopener"><span class="snum">[${i+1}]</span>${esc(s.title)}${s.source?` — <i>${esc(s.source)}</i>`:''}</a>`
+      : `<span style="font-size:.85rem"><span class="snum">[${i+1}]</span>${esc(s.title)}</span>`
+  ).join('');
+  return `<div class="sources"><div class="stitle">📎 SOURCES</div>${items}</div>`;
+}
+
+function addMsg(kind, html){
+  const d = document.createElement('div');
+  d.className = 'msg ' + kind;
+  d.innerHTML = html;
+  chatEl.appendChild(d);
+  d.scrollIntoView({behavior:'smooth', block:'end'});
+  return d;
+}
+
+function agentBubble(data){
+  const head = '<div class="who">🤖 News Agent</div>';
+  if(data.error){
+    return head + `<div class="body">⚠️ ${esc(data.error)}</div>`;
+  }
+  let html = head + `<div class="body">${linkifyCites(data.answer||'')}</div>`;
+  if(data.notice) html += `<div class="body" style="margin-top:8px;color:var(--muted);font-size:.85rem">ℹ️ ${esc(data.notice)}</div>`;
+  html += renderSources(data.sources);
+  html += renderTrace(data.trace);
+  if(data.cached) html += `<div style="margin-top:6px;font-size:.72rem;color:var(--muted)">cached jawab</div>`;
+  return html;
+}
+
+const typingSteps = ['Agent plan bana raha hai…','Searches chal rahe hain…','Sources compare ho rahe hain…','Jawab ban raha hai…'];
+let typingTimer = null;
+function showTyping(){
+  typingEl.classList.add('on');
+  let i = 0;
+  typingTx.textContent = typingSteps[0];
+  typingTimer = setInterval(()=>{ i=(i+1)%typingSteps.length; typingTx.textContent = typingSteps[i]; }, 1800);
+  typingEl.scrollIntoView({behavior:'smooth', block:'end'});
+}
+function hideTyping(){
+  typingEl.classList.remove('on');
+  if(typingTimer){ clearInterval(typingTimer); typingTimer = null; }
+}
+
+async function ask(text){
+  addMsg('user', esc(text));
+  inputEl.value = '';
+  showTyping(); sendBtn.disabled = true;
+  try{
+    const r = await fetch('/api/chat', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({message:text, session_id:sid})
+    });
+    const data = await r.json();
+    if(data.session_id) sid = data.session_id;  // server wala sid rakho
+    localStorage.setItem('newsagent_sid', sid);
+    hideTyping();
+    addMsg(data.error ? 'agent error' : 'agent', agentBubble(data));
+  }catch(e){
+    hideTyping();
+    addMsg('agent error', '<div class="who">🤖 News Agent</div><div class="body">⚠️ Internet me dikkat lag rahi hai — connection check karke phir try karo.</div>');
+  }finally{
+    sendBtn.disabled = false;
+    inputEl.focus();
+  }
+}
+
+formEl.addEventListener('submit', e => {
+  e.preventDefault();
+  const t = inputEl.value.trim();
+  if(!t || sendBtn.disabled) return;
+  ask(t);
+});
+
+document.getElementById('chips').addEventListener('click', e => {
+  if(e.target.tagName !== 'BUTTON' || sendBtn.disabled) return;
+  ask(e.target.dataset.q);
+});
+
+// mode badge: /health se live/sample
+fetch('/health').then(r=>r.json()).then(h => {
+  const m = (h.agent && h.agent.mode) || (h.serpapi_configured ? 'live' : 'sample');
+  badgeEl.textContent = m === 'live' ? '● LIVE' : '● SAMPLE';
+  badgeEl.className = 'badge ' + (m === 'live' ? 'live' : 'sample');
+}).catch(()=>{});
+
+// welcome message
+addMsg('agent', '<div class="who">🤖 News Agent</div><div class="body">Namaste! 🙏 Main ek AI research agent hun — koi bhi news/tech sawaal poochho, main plan karke live search karunga, sources compare karke Hinglish me jawab dunga. Neeche "Agent trace" me dekh sakte ho maine kya-kya kiya. 👇</div>');
+</script>
+</body>
+</html>
